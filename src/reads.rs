@@ -1,8 +1,8 @@
 use arrow::{
     array::{
-        Array, BooleanArray, DictionaryArray, FixedSizeBinaryBuilder,
-        Float32Array, Int16Array, ListArray, ListBuilder, StringArray, UInt16Array, UInt32Array,
-        UInt64Array, UInt64Builder, UInt8Array,
+        Array, BooleanArray, DictionaryArray, FixedSizeBinaryBuilder, Float32Array, Int16Array,
+        ListArray, ListBuilder, StringArray, UInt16Array, UInt32Array, UInt64Array, UInt64Builder,
+        UInt8Array,
     },
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
@@ -32,6 +32,18 @@ pub fn _build_signal_index() -> arrow::error::Result<arrow::array::GenericListAr
 
     // Building a list [1, 2, 3]
     list_builder.values().append_value(0);
+    list_builder.values().append_value(1);
+    list_builder.values().append_value(2);
+    list_builder.values().append_value(3);
+    list_builder.values().append_value(4);
+    list_builder.values().append_value(6);
+    list_builder.values().append_value(7);
+    list_builder.values().append_value(8);
+    list_builder.values().append_value(9);
+    list_builder.values().append_value(10);
+    list_builder.values().append_value(11);
+    list_builder.values().append_value(12);
+    list_builder.values().append_value(13);
     list_builder.append(true);
 
     // Finish building and get the ListArray
@@ -145,7 +157,7 @@ pub fn dummy_read_row(
     let values = StringArray::from(vec!["value1"]);
 
     let run_info = DictionaryArray::try_new(keys, Arc::new(values)).unwrap();
-    let num_samples = UInt64Array::from(vec![1000]);
+    let num_samples = UInt64Array::from(vec![13872]);
     let batch2 = RecordBatch::try_new(
         schema.clone(),
         vec![

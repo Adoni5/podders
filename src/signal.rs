@@ -13,11 +13,11 @@ fn read_int16_from_file(filename: &str) -> io::Result<Vec<i16>> {
     f.read_to_end(&mut buffer)?;
 
     // Assuming the system has the same endianness as the file was written with
-    let data = buffer
+    let data: Vec<i16> = buffer
         .chunks_exact(2)
         .map(|chunk| i16::from_ne_bytes([chunk[0], chunk[1]]))
         .collect();
-
+    println!("Data length: {}", data.len());
     Ok(data)
 }
 
@@ -56,29 +56,33 @@ pub fn signal_schema() -> Schema {
 pub fn signal_data(
     schema: Arc<Schema>,
     read_id: arrow::array::FixedSizeBinaryArray,
-) -> Result<RecordBatch, Box<dyn Error>> {
+) -> Result<Vec<RecordBatch>, Box<dyn Error>> {
     // Create dummy data
     // Create a LargeListBuilder
-    let mut signal_builder = LargeListBuilder::new(Int16Builder::new());
-
+    let mut batches = vec![];
     // Append a list to the LargeListBuilder
+
     let data = read_int16_from_file("static/test_signal.bin")?;
-    println!("{data:#?}");
 
-    signal_builder.values().append_slice(&data);
-    signal_builder.append(true);
-    let signal = Arc::new(signal_builder.finish());
-    let samples = UInt32Array::from(vec![data.len() as u32]);
-
+    // println!("Data length after move {}", data.len());
+    for chunk in data.chunks(1000) {
+        let mut signal_builder = LargeListBuilder::new(Int16Builder::new());
+        signal_builder.values().append_slice(chunk);
+        signal_builder.append(true);
+        let samples = UInt32Array::from(vec![chunk.len() as u32]);
+        let r_id = read_id.clone();
+        let signal = Arc::new(signal_builder.finish());
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(r_id) as Arc<dyn Array>,
+                signal.clone() as Arc<dyn Array>,
+                Arc::new(samples) as Arc<dyn Array>,
+            ],
+        )?;
+        batches.push(batch)
+    }
     // Create a RecordBatch
-    let batch = RecordBatch::try_new(
-        schema,
-        vec![
-            Arc::new(read_id) as Arc<dyn Array>,
-            signal as Arc<dyn Array>,
-            Arc::new(samples) as Arc<dyn Array>,
-        ],
-    )?;
 
-    Ok(batch)
+    Ok(batches)
 }

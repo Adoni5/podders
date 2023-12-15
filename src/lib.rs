@@ -1,3 +1,4 @@
+use arrow::array::cast::{as_generic_binary_array, as_large_list_array};
 use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
 
@@ -133,7 +134,10 @@ fn main() -> arrow::error::Result<()> {
     println!("singal offset {offset}");
     {
         let mut writer: FileWriter<&File> = FileWriter::try_new(&file, &signal_schema)?;
-        writer.write(&signal_data_)?;
+
+        for signal_data in signal_data_ {
+            writer.write(&signal_data)?;
+        }
         writer.finish()?;
     }
     let length = file.stream_position().unwrap() as i64 - offset; // Replace with actual length
@@ -271,8 +275,11 @@ fn read_pod5_footer(filename: &str, table: ContentType) -> FileInfo {
         length: x[0].length() as u64,
     }
 }
+
 #[cfg(test)]
 mod tests {
+
+    use arrow::array::{Array, BinaryArray, Int16Array};
 
     use super::*;
 
@@ -293,6 +300,35 @@ mod tests {
                 field.data_type()
             );
         }
+        let signal = batch[0].column_by_name("signal").unwrap();
+        println!("{}", signal.data_type());
+        let collected = as_large_list_array(signal).values();
+        println!("{}", signal.len());
+    }
+    #[test]
+    fn test_reading_real_signal_table() {
+        let file_info = read_pod5_footer(
+            "/home/adoni5/Projects/podders/static/PAS89372_pass_aa50cb53_71dbefbe_0.pod5",
+            ContentType::SignalTable,
+        );
+        let batch = read_arrow_table(
+            "/home/adoni5/Projects/podders/static/PAS89372_pass_aa50cb53_71dbefbe_0.pod5",
+            file_info.offset,
+            file_info.length,
+        )
+        .unwrap();
+        let schema = batch[0].schema();
+
+        for field in schema.fields() {
+            println!(
+                "Field name: {}, Data type: {}",
+                field.name(),
+                field.data_type()
+            );
+        }
+        let signal = batch[0].column_by_name("signal").unwrap();
+        println!("{}", signal.data_type());
+        println!("{}", signal.len());
     }
     #[test]
     fn test_reading_read_table() {
