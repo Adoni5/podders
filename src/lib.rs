@@ -224,7 +224,7 @@ fn read_arrow_table(
 
     // Deserialize bytes into Arrow RecordBatch
     let cursor = std::io::Cursor::new(buffer);
-    let mut reader = FileReader::try_new(cursor, None)?;
+    let reader = FileReader::try_new(cursor, None)?;
 
     let mut batches = Vec::new();
     for batch in reader {
@@ -241,7 +241,7 @@ struct FileInfo {
 
 fn read_pod5_footer(filename: &str, table: ContentType) -> FileInfo {
     let mut file = File::open(filename).unwrap();
-    let mut end = file.seek(SeekFrom::End(0)).unwrap();
+    let _end = file.seek(SeekFrom::End(0)).unwrap();
     file.seek(SeekFrom::Current(-32)).unwrap(); // Signature + Section marker + 8 bytes for footer length
     let mut buffer = [0; 8]; // Buffer for 8 bytes
 
@@ -376,7 +376,7 @@ mod tests {
     #[test]
     fn test_deserialising_footer() {
         let mut file = File::open("/home/adoni5/Projects/podders/example.pod5").unwrap();
-        let mut end = file.seek(SeekFrom::End(0)).unwrap();
+        let _end = file.seek(SeekFrom::End(0)).unwrap();
         file.seek(SeekFrom::Current(-32)).unwrap(); // Signature + Section marker + 8 bytes for footer length
         let mut buffer = [0; 8]; // Buffer for 8 bytes
 

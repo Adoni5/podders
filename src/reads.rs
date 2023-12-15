@@ -1,6 +1,6 @@
 use arrow::{
     array::{
-        Array, BooleanArray, DictionaryArray, FixedSizeBinaryArray, FixedSizeBinaryBuilder,
+        Array, BooleanArray, DictionaryArray, FixedSizeBinaryBuilder,
         Float32Array, Int16Array, ListArray, ListBuilder, StringArray, UInt16Array, UInt32Array,
         UInt64Array, UInt64Builder, UInt8Array,
     },

@@ -436,23 +436,14 @@ impl flatbuffers::Verifiable for Footer<'_> {
     Ok(())
   }
 }
+#[derive(Default)]
 pub struct FooterArgs<'a> {
     pub file_identifier: Option<flatbuffers::WIPOffset<&'a str>>,
     pub software: Option<flatbuffers::WIPOffset<&'a str>>,
     pub pod5_version: Option<flatbuffers::WIPOffset<&'a str>>,
     pub contents: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<EmbeddedFile<'a>>>>>,
 }
-impl<'a> Default for FooterArgs<'a> {
-  #[inline]
-  fn default() -> Self {
-    FooterArgs {
-      file_identifier: None,
-      software: None,
-      pod5_version: None,
-      contents: None,
-    }
-  }
-}
+
 
 pub struct FooterBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
@@ -561,14 +552,14 @@ pub unsafe fn size_prefixed_root_as_footer_unchecked(buf: &[u8]) -> Footer {
   flatbuffers::size_prefixed_root_unchecked::<Footer>(buf)
 }
 #[inline]
-pub fn finish_footer_buffer<'a, 'b>(
-    fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub fn finish_footer_buffer<'a>(
+    fbb: &mut flatbuffers::FlatBufferBuilder<'a>,
     root: flatbuffers::WIPOffset<Footer<'a>>) {
   fbb.finish(root, None);
 }
 
 #[inline]
-pub fn finish_size_prefixed_footer_buffer<'a, 'b>(fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>, root: flatbuffers::WIPOffset<Footer<'a>>) {
+pub fn finish_size_prefixed_footer_buffer<'a>(fbb: &mut flatbuffers::FlatBufferBuilder<'a>, root: flatbuffers::WIPOffset<Footer<'a>>) {
   fbb.finish_size_prefixed(root, None);
 }
 }  // pub mod ReadsFormat
