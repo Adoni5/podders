@@ -11,8 +11,9 @@ use arrow::array::{
 
 pub fn _run_info_batch(schema: Arc<Schema>) -> arrow::error::Result<RecordBatch> {
     // Create dummy data for each field
-    let acquisition_id = StringArray::from(vec!["acquisition_id_1"]);
-    let acquisition_start_time = TimestampMillisecondArray::from(vec![1625097600000]);
+    let acquisition_id = StringArray::from(vec!["value1"]);
+    let acquisition_start_time =
+        TimestampMillisecondArray::from(vec![1625097600000]).with_timezone("UTC".to_string());
     let adc_max = Int16Array::from(vec![32767]);
     let adc_min = Int16Array::from(vec![-32768]);
 
@@ -30,9 +31,10 @@ pub fn _run_info_batch(schema: Arc<Schema>) -> arrow::error::Result<RecordBatch>
     let flow_cell_product_code = StringArray::from(vec!["PC123"]);
     let protocol_name = StringArray::from(vec!["Protocol 1"]);
     let protocol_run_id = StringArray::from(vec!["PRID123"]);
-    let protocol_start_time = TimestampMillisecondArray::from(vec![1625097600000]);
+    let protocol_start_time =
+        TimestampMillisecondArray::from(vec![1625097600000]).with_timezone("UTC".to_string());
     let sample_id = StringArray::from(vec!["Sample 1"]);
-    let sample_rate = UInt16Array::from(vec![4000]);
+    let sample_rate = UInt16Array::from(vec![5000]);
     let sequencing_kit = StringArray::from(vec!["Kit X"]);
     let sequencer_position = StringArray::from(vec!["Position 1"]);
     let sequencer_position_type = StringArray::from(vec!["Type A"]);
@@ -69,9 +71,9 @@ pub fn _run_info_batch(schema: Arc<Schema>) -> arrow::error::Result<RecordBatch>
     Ok(batch)
 }
 
-pub fn run_info_schema() -> Result<Schema, Box<dyn Error>> {
-    let map_field = Field::new(
-        "map_field",
+fn _tags_field(name: &str) -> Field {
+    Field::new(
+        name,
         DataType::Map(
             Arc::new(Field::new(
                 "entries",
@@ -87,13 +89,13 @@ pub fn run_info_schema() -> Result<Schema, Box<dyn Error>> {
             false,
         ),
         false,
-    );
-    let mut metadata = HashMap::new();
+    )
+}
+
+pub fn run_info_schema() -> Result<Schema, Box<dyn Error>> {
+    let mut metadata: HashMap<String, String> = HashMap::new();
     metadata.insert("MINKNOW:pod5_version".to_string(), "1.0.0".to_string());
-    metadata.insert(
-        "MINKNOW:software".to_string(),
-        "MinNOW Core 5.2.3".to_string(),
-    );
+    metadata.insert("MINKNOW:software".to_string(), "Podders".to_string());
     metadata.insert(
         "MINKNOW:file_identifier".to_string(),
         "cbf91180-0684-4a39-bf56-41eaf437de9e".to_string(),
@@ -105,12 +107,12 @@ pub fn run_info_schema() -> Result<Schema, Box<dyn Error>> {
             Field::new("acquisition_id", DataType::Utf8, false),
             Field::new(
                 "acquisition_start_time",
-                DataType::Timestamp(TimeUnit::Millisecond, None),
+                DataType::Timestamp(TimeUnit::Millisecond, Some("UTC".to_string().into())),
                 false,
             ),
             Field::new("adc_max", DataType::Int16, false),
             Field::new("adc_min", DataType::Int16, false),
-            map_field.clone(),
+            _tags_field("context_tags"),
             Field::new("experiment_name", DataType::Utf8, false),
             Field::new("flow_cell_id", DataType::Utf8, false),
             Field::new("flow_cell_product_code", DataType::Utf8, false),
@@ -118,7 +120,7 @@ pub fn run_info_schema() -> Result<Schema, Box<dyn Error>> {
             Field::new("protocol_run_id", DataType::Utf8, false),
             Field::new(
                 "protocol_start_time",
-                DataType::Timestamp(TimeUnit::Millisecond, None),
+                DataType::Timestamp(TimeUnit::Millisecond, Some("UTC".to_string().into())),
                 false,
             ),
             Field::new("sample_id", DataType::Utf8, false),
@@ -129,7 +131,7 @@ pub fn run_info_schema() -> Result<Schema, Box<dyn Error>> {
             Field::new("software", DataType::Utf8, false),
             Field::new("system_name", DataType::Utf8, false),
             Field::new("system_type", DataType::Utf8, false),
-            map_field.clone(),
+            _tags_field("tracking_id"),
         ],
         metadata,
     );
