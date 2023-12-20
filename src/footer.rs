@@ -29,7 +29,6 @@ pub fn read_pod5_footer(filename: &str, table: ContentType) -> FileInfo {
 
     // Convert bytes to little-endian i64
     let value = i64::from_le_bytes(buffer);
-    println!("{value}");
     // Seek to the footer position
     file.seek(SeekFrom::Current(-(8 + value))).unwrap();
 
@@ -84,24 +83,19 @@ pub fn write_flatbuffer_footer(
     builder.finish(footer, None);
     let current_pos = file_handle.stream_position().unwrap();
     let offset = current_pos;
-    println!("pre footer wrrite pos {current_pos}");
 
     // Get the final FlatBuffer byte array to write to the file
     let buf = builder.finished_data();
     file_handle.write_all(buf)?;
     let current_pos = file_handle.stream_position()?;
-    println!("post footer wrrite {current_pos}");
     let padding_needed = (8 - (current_pos % 8)) % 8; // Calculate padding to reach 8-byte boundary
 
-    println!("{padding_needed}");
     // Write padding bytes
     for _ in 0..padding_needed {
-        println!("Adding padding");
         file_handle.write_all(&[0])?;
     }
     // Footer length (dummy value for example)
     let footer_length: i64 = file_handle.stream_position().unwrap() as i64 - offset as i64;
-    println!("footer length {footer_length}");
     file_handle.write_all(&footer_length.to_le_bytes())?;
 
     // Write the section marker again

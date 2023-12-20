@@ -373,9 +373,7 @@ pub fn create_read_row(
     let num_signal_rows = signal_batches.len();
     _signal.extend(signal_batches);
     let offset = _signal.len().saturating_sub(1);
-    println!("offset {offset}, num_rows {num_signal_rows}");
     let signal_: ListArray = _build_signal_index(offset..(offset + num_signal_rows))?;
-    println!("singnal {:#?}", signal_);
 
     // <--------------------- Rest of the fields ---------------->
     let channel = UInt16Array::from(vec![read.channel]);

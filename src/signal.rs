@@ -23,7 +23,6 @@ pub fn read_int16_from_file(filename: &str) -> io::Result<Vec<i16>> {
         .chunks_exact(2)
         .map(|chunk| i16::from_ne_bytes([chunk[0], chunk[1]]))
         .collect();
-    println!("Data length: {}", data.len());
     Ok(data)
 }
 
@@ -69,7 +68,6 @@ pub fn handle_signal_data(
     let mut batches = vec![];
     // Append a list to the LargeListBuilder
 
-    // println!("Data length after move {}", data.len());
     for chunk in signal_vec.chunks(MAX_SIGNAL) {
         let mut signal_builder = LargeListBuilder::new(Int16Builder::new());
         signal_builder.values().append_slice(chunk);
