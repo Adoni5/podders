@@ -14,26 +14,26 @@ use arrow::array::{
 use crate::{POD5_VERSION, SOFTWARE};
 
 pub struct RunInfoData {
-    acquisition_id: String,
-    acquisition_start_time: i64, // Timestamp in milliseconds
-    adc_max: i16,
-    adc_min: i16,
-    context_tags: HashMap<String, String>, // Simplified representation of MapArray
-    experiment_name: String,
-    flow_cell_id: String,
-    flow_cell_product_code: String,
-    protocol_name: String,
-    protocol_run_id: String,
-    protocol_start_time: i64, // Timestamp in milliseconds
-    sample_id: String,
-    sample_rate: u16,
-    sequencing_kit: String,
-    sequencer_position: String,
-    sequencer_position_type: String,
-    software: String,
-    system_name: String,
-    system_type: String,
-    tracking_id: HashMap<String, String>, // Assuming similar structure as context_tags
+    pub acquisition_id: String,
+    pub acquisition_start_time: i64, // Timestamp in milliseconds
+    pub adc_max: i16,
+    pub adc_min: i16,
+    pub context_tags: HashMap<String, String>, // Simplified representation of MapArray
+    pub experiment_name: String,
+    pub flow_cell_id: String,
+    pub flow_cell_product_code: String,
+    pub protocol_name: String,
+    pub protocol_run_id: String,
+    pub protocol_start_time: i64, // Timestamp in milliseconds
+    pub sample_id: String,
+    pub sample_rate: u16,
+    pub sequencing_kit: String,
+    pub sequencer_position: String,
+    pub sequencer_position_type: String,
+    pub software: String,
+    pub system_name: String,
+    pub system_type: String,
+    pub tracking_id: HashMap<String, String>, // Assuming similar structure as context_tags
 }
 
 fn convert_hashmap_to_maparray(map: &HashMap<String, String>) -> arrow::error::Result<MapArray> {
