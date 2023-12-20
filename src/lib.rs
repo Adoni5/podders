@@ -13,17 +13,16 @@
 //! each dedicated to handling different aspects of the Pod5 file format.
 
 use arrow::datatypes::Schema;
-use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
 
 use arrow::record_batch::RecordBatch;
 use footer::write_flatbuffer_footer;
 use reads::{create_read_batches, create_reads_arrow_schema, ReadInfo};
-use run_info::{create_run_info_batch, dummy_run_info, run_info_schema, RunInfoData};
+use run_info::{create_run_info_batch, run_info_schema, RunInfoData};
 use signal::signal_schema;
 use std::error::Error;
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Seek, Write};
 pub mod footer;
 pub mod reads;
 pub mod run_info;
@@ -40,8 +39,6 @@ pub use footer_generated::minknow::reads_format::{
     root_as_footer, ContentType, EmbeddedFile, EmbeddedFileArgs, EmbeddedFileBuilder, Footer,
     FooterArgs, Format,
 };
-
-use crate::reads::dummy_read_row;
 
 /// Pod5 in hexadecimal - file signature
 const SIGNATURE: [u8; 8] = [0x8B, 0x50, 0x4F, 0x44, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -329,6 +326,11 @@ impl Pod5File {
 mod tests {
 
     use arrow::array::Array;
+    use arrow::ipc::reader::FileReader;
+
+    use crate::reads::dummy_read_row;
+    use run_info::dummy_run_info;
+    use std::io::{Read, Seek, SeekFrom, Write};
 
     use crate::footer::read_pod5_footer;
 
