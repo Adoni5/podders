@@ -17,7 +17,6 @@ use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
 
 use arrow::record_batch::RecordBatch;
-use flatbuffers::WIPOffset;
 use footer::write_flatbuffer_footer;
 use reads::{create_read_batches, create_reads_arrow_schema, ReadInfo};
 use run_info::{create_run_info_batch, dummy_run_info, run_info_schema, RunInfoData};
@@ -326,52 +325,6 @@ impl Pod5File {
     }
 }
 
-fn test() -> arrow::error::Result<()> {
-    let mut pod5 = Pod5File::new("test_builder.pod5").unwrap();
-
-    pod5.push_run_info(dummy_run_info());
-    pod5.write_run_info_to_ipc();
-    println!("{:#?}", pod5.run_table.length);
-
-    let read = dummy_read_row(None).unwrap();
-    let read_2 = dummy_read_row(Some("9e81bb6a-8610-4907-b4dd-4ed834fc414d")).unwrap();
-
-    pod5.push_read(read);
-    pod5.push_read(read_2);
-    pod5.write_reads_to_ipc();
-    // println!("{:#?}", pod5._signal);
-    pod5.write_signal_to_ipc();
-    pod5.write_footer();
-
-    Ok(())
-}
-
-fn read_arrow_table(
-    file_path: &str,
-    offset: u64,
-    length: u64,
-) -> arrow::error::Result<Vec<RecordBatch>> {
-    let mut file = File::open(file_path)?;
-
-    // Seek to the start of the embedded table
-    file.seek(SeekFrom::Start(offset))?;
-
-    // Read the specified length of bytes
-    let mut buffer = vec![0; length as usize];
-    file.read_exact(&mut buffer)?;
-
-    // Deserialize bytes into Arrow RecordBatch
-    let cursor = std::io::Cursor::new(buffer);
-    let reader = FileReader::try_new(cursor, None)?;
-
-    let mut batches = Vec::new();
-    for batch in reader {
-        batches.push(batch?);
-    }
-
-    Ok(batches)
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -381,6 +334,52 @@ mod tests {
 
     use super::*;
     use arrow::array::cast::as_large_list_array;
+
+    fn test() -> arrow::error::Result<()> {
+        let mut pod5 = Pod5File::new("test_builder.pod5").unwrap();
+
+        pod5.push_run_info(dummy_run_info());
+        pod5.write_run_info_to_ipc();
+        println!("{:#?}", pod5.run_table.length);
+
+        let read = dummy_read_row(None).unwrap();
+        let read_2 = dummy_read_row(Some("9e81bb6a-8610-4907-b4dd-4ed834fc414d")).unwrap();
+
+        pod5.push_read(read);
+        pod5.push_read(read_2);
+        pod5.write_reads_to_ipc();
+        // println!("{:#?}", pod5._signal);
+        pod5.write_signal_to_ipc();
+        pod5.write_footer();
+
+        Ok(())
+    }
+
+    fn read_arrow_table(
+        file_path: &str,
+        offset: u64,
+        length: u64,
+    ) -> arrow::error::Result<Vec<RecordBatch>> {
+        let mut file = File::open(file_path)?;
+
+        // Seek to the start of the embedded table
+        file.seek(SeekFrom::Start(offset))?;
+
+        // Read the specified length of bytes
+        let mut buffer = vec![0; length as usize];
+        file.read_exact(&mut buffer)?;
+
+        // Deserialize bytes into Arrow RecordBatch
+        let cursor = std::io::Cursor::new(buffer);
+        let reader = FileReader::try_new(cursor, None)?;
+
+        let mut batches = Vec::new();
+        for batch in reader {
+            batches.push(batch?);
+        }
+
+        Ok(batches)
+    }
 
     #[test]
     fn does_it_work() {

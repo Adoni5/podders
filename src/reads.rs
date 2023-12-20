@@ -23,7 +23,6 @@ use arrow::{
     datatypes::{DataType, Field, Int16Type, Schema},
     record_batch::RecordBatch,
 };
-use core::num;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
