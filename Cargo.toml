@@ -9,7 +9,7 @@ description = "Write uncompressed Pod5 files in native rust. No FFI! PODDDDERS"
 readme = "README.md"
 repository = "https://github.com/adoni5/podders/"
 documentation = "https://docs.rs/podders"
-categories = ["science::bioinformatics", "filesystem::pod5"]
+categories = ["science", "filesystem"]
 
 [dependencies]
 arrow = "49.0.0"

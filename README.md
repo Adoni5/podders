@@ -25,6 +25,7 @@ fn test() -> arrow::error::Result<()> {
     let read_2 = dummy_read_row(Some("9e81bb6a-8610-4907-b4dd-4ed834fc414d")).unwrap();
 
     pod5.push_read(read);
+
     pod5.push_read(read_2);
     pod5.write_reads_to_ipc();
     // println!("{:#?}", pod5._signal);
@@ -35,3 +36,7 @@ fn test() -> arrow::error::Result<()> {
 }
 ```
 
+# Changelog
+
+#### V0.1.1
+- Made struct fields on RunInfoData and ReadInfo public - whoops!
