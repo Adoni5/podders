@@ -3,7 +3,6 @@ name = "podders"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-license-file = "LICENSE"
 keywords = ["bioinformatics", "nanopore", "file-parsing", "sequencing"]
 authors = ["Rory Munro <rory.munro@nottingham.ac.uk"]
 description = "Write uncompressed Pod5 files in native rust. No FFI! PODDDDERS"
