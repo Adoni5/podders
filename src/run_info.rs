@@ -1,74 +1,115 @@
 use arrow::{
+    array::MapArray,
     datatypes::{DataType, Field, Schema, TimeUnit},
     record_batch::RecordBatch,
 };
 use std::{collections::HashMap, error::Error, sync::Arc};
+use uuid::Uuid;
 
 use arrow::array::{
     Array, Int16Array, MapBuilder, StringArray, StringBuilder, TimestampMillisecondArray,
     UInt16Array,
 };
 
-pub fn _run_info_batch(schema: Arc<Schema>) -> arrow::error::Result<RecordBatch> {
-    // Create dummy data for each field
-    let acquisition_id = StringArray::from(vec!["value1"]);
-    let acquisition_start_time =
-        TimestampMillisecondArray::from(vec![1625097600000]).with_timezone("UTC".to_string());
-    let adc_max = Int16Array::from(vec![32767]);
-    let adc_min = Int16Array::from(vec![-32768]);
+use crate::{POD5_VERSION, SOFTWARE};
 
-    // For context_tags and tracking_id (Map type)
+pub struct RunInfoData {
+    acquisition_id: String,
+    acquisition_start_time: i64, // Timestamp in milliseconds
+    adc_max: i16,
+    adc_min: i16,
+    context_tags: HashMap<String, String>, // Simplified representation of MapArray
+    experiment_name: String,
+    flow_cell_id: String,
+    flow_cell_product_code: String,
+    protocol_name: String,
+    protocol_run_id: String,
+    protocol_start_time: i64, // Timestamp in milliseconds
+    sample_id: String,
+    sample_rate: u16,
+    sequencing_kit: String,
+    sequencer_position: String,
+    sequencer_position_type: String,
+    software: String,
+    system_name: String,
+    system_type: String,
+    tracking_id: HashMap<String, String>, // Assuming similar structure as context_tags
+}
 
+fn convert_hashmap_to_maparray(map: &HashMap<String, String>) -> arrow::error::Result<MapArray> {
     let mut map_builder = MapBuilder::new(None, StringBuilder::new(), StringBuilder::new());
-    map_builder.keys().append_value("key1");
-    map_builder.values().append_value("value1");
-    map_builder.append(true)?;
 
-    let context_tags = map_builder.finish();
+    for (key, value) in map {
+        map_builder.keys().append_value(key);
+        map_builder.values().append_value(value);
+        map_builder.append(true)?;
+    }
 
-    let experiment_name = StringArray::from(vec!["Experiment 1"]);
-    let flow_cell_id = StringArray::from(vec!["FCID123"]);
-    let flow_cell_product_code = StringArray::from(vec!["PC123"]);
-    let protocol_name = StringArray::from(vec!["Protocol 1"]);
-    let protocol_run_id = StringArray::from(vec!["PRID123"]);
-    let protocol_start_time =
-        TimestampMillisecondArray::from(vec![1625097600000]).with_timezone("UTC".to_string());
-    let sample_id = StringArray::from(vec!["Sample 1"]);
-    let sample_rate = UInt16Array::from(vec![5000]);
-    let sequencing_kit = StringArray::from(vec!["Kit X"]);
-    let sequencer_position = StringArray::from(vec!["Position 1"]);
-    let sequencer_position_type = StringArray::from(vec!["Type A"]);
-    let software = StringArray::from(vec!["Software 1.0"]);
-    let system_name = StringArray::from(vec!["System 1"]);
-    let system_type = StringArray::from(vec!["System Type A"]);
-    let tracking_id = context_tags.clone(); // Assuming similar structure as context_tags
+    Ok(map_builder.finish())
+}
 
-    let batch = RecordBatch::try_new(
-        schema.clone(),
-        vec![
-            Arc::new(acquisition_id) as Arc<dyn Array>,
-            Arc::new(acquisition_start_time) as Arc<dyn Array>,
-            Arc::new(adc_max) as Arc<dyn Array>,
-            Arc::new(adc_min) as Arc<dyn Array>,
-            Arc::new(context_tags) as Arc<dyn Array>,
-            Arc::new(experiment_name) as Arc<dyn Array>,
-            Arc::new(flow_cell_id) as Arc<dyn Array>,
-            Arc::new(flow_cell_product_code) as Arc<dyn Array>,
-            Arc::new(protocol_name) as Arc<dyn Array>,
-            Arc::new(protocol_run_id) as Arc<dyn Array>,
-            Arc::new(protocol_start_time) as Arc<dyn Array>,
-            Arc::new(sample_id) as Arc<dyn Array>,
-            Arc::new(sample_rate) as Arc<dyn Array>,
-            Arc::new(sequencing_kit) as Arc<dyn Array>,
-            Arc::new(sequencer_position) as Arc<dyn Array>,
-            Arc::new(sequencer_position_type) as Arc<dyn Array>,
-            Arc::new(software) as Arc<dyn Array>,
-            Arc::new(system_name) as Arc<dyn Array>,
-            Arc::new(system_type) as Arc<dyn Array>,
-            Arc::new(tracking_id) as Arc<dyn Array>,
-        ],
-    )?;
-    Ok(batch)
+pub fn create_run_info_batch(
+    schema: Arc<Schema>,
+    run_infos: &Vec<RunInfoData>,
+) -> arrow::error::Result<Vec<RecordBatch>> {
+    let mut batches = vec![];
+    for run_info in run_infos {
+        // Create dummy data for each field
+        let acquisition_id = StringArray::from(vec![run_info.acquisition_id.clone()]);
+        let acquisition_start_time =
+            TimestampMillisecondArray::from(vec![run_info.acquisition_start_time])
+                .with_timezone("UTC".to_string());
+        let adc_max = Int16Array::from(vec![run_info.adc_max]);
+        let adc_min = Int16Array::from(vec![run_info.adc_min]);
+        let context_tags = convert_hashmap_to_maparray(&run_info.context_tags)?;
+        let experiment_name = StringArray::from(vec![run_info.experiment_name.clone()]);
+        let flow_cell_id = StringArray::from(vec![run_info.flow_cell_id.clone()]);
+        let flow_cell_product_code =
+            StringArray::from(vec![run_info.flow_cell_product_code.clone()]);
+        let protocol_name = StringArray::from(vec![run_info.protocol_name.clone()]);
+        let protocol_run_id = StringArray::from(vec![run_info.protocol_run_id.clone()]);
+        let protocol_start_time =
+            TimestampMillisecondArray::from(vec![run_info.protocol_start_time])
+                .with_timezone("UTC".to_string());
+        let sample_id = StringArray::from(vec![run_info.sample_id.clone()]);
+        let sample_rate = UInt16Array::from(vec![run_info.sample_rate]);
+        let sequencing_kit = StringArray::from(vec![run_info.sequencing_kit.clone()]);
+        let sequencer_position = StringArray::from(vec![run_info.sequencer_position.clone()]);
+        let sequencer_position_type =
+            StringArray::from(vec![run_info.sequencer_position_type.clone()]);
+        let software = StringArray::from(vec![run_info.software.clone()]);
+        let system_name = StringArray::from(vec![run_info.system_name.clone()]);
+        let system_type = StringArray::from(vec![run_info.system_type.clone()]);
+        let tracking_id = convert_hashmap_to_maparray(&run_info.tracking_id)?;
+
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(acquisition_id) as Arc<dyn Array>,
+                Arc::new(acquisition_start_time) as Arc<dyn Array>,
+                Arc::new(adc_max) as Arc<dyn Array>,
+                Arc::new(adc_min) as Arc<dyn Array>,
+                Arc::new(context_tags) as Arc<dyn Array>,
+                Arc::new(experiment_name) as Arc<dyn Array>,
+                Arc::new(flow_cell_id) as Arc<dyn Array>,
+                Arc::new(flow_cell_product_code) as Arc<dyn Array>,
+                Arc::new(protocol_name) as Arc<dyn Array>,
+                Arc::new(protocol_run_id) as Arc<dyn Array>,
+                Arc::new(protocol_start_time) as Arc<dyn Array>,
+                Arc::new(sample_id) as Arc<dyn Array>,
+                Arc::new(sample_rate) as Arc<dyn Array>,
+                Arc::new(sequencing_kit) as Arc<dyn Array>,
+                Arc::new(sequencer_position) as Arc<dyn Array>,
+                Arc::new(sequencer_position_type) as Arc<dyn Array>,
+                Arc::new(software) as Arc<dyn Array>,
+                Arc::new(system_name) as Arc<dyn Array>,
+                Arc::new(system_type) as Arc<dyn Array>,
+                Arc::new(tracking_id) as Arc<dyn Array>,
+            ],
+        )?;
+        batches.push(batch);
+    }
+    Ok(batches)
 }
 
 fn _tags_field(name: &str) -> Field {
@@ -92,13 +133,13 @@ fn _tags_field(name: &str) -> Field {
     )
 }
 
-pub fn run_info_schema() -> Result<Schema, Box<dyn Error>> {
+pub fn run_info_schema(file_identifier: &Uuid) -> Result<Schema, Box<dyn Error>> {
     let mut metadata: HashMap<String, String> = HashMap::new();
-    metadata.insert("MINKNOW:pod5_version".to_string(), "1.0.0".to_string());
-    metadata.insert("MINKNOW:software".to_string(), "Podders".to_string());
+    metadata.insert("MINKNOW:pod5_version".to_string(), POD5_VERSION.to_string());
+    metadata.insert("MINKNOW:software".to_string(), SOFTWARE.to_string());
     metadata.insert(
         "MINKNOW:file_identifier".to_string(),
-        "cbf91180-0684-4a39-bf56-41eaf437de9e".to_string(),
+        file_identifier.to_string(),
     );
 
     // Create a schema with metadata
@@ -136,4 +177,35 @@ pub fn run_info_schema() -> Result<Schema, Box<dyn Error>> {
         metadata,
     );
     Ok(schema_with_metadata)
+}
+
+pub fn dummy_run_info() -> RunInfoData {
+    RunInfoData {
+        acquisition_id: "value1".to_string(),
+        acquisition_start_time: 1625097600000,
+        adc_max: 32767,
+        adc_min: -32768,
+        context_tags: [("key1".to_string(), "value1".to_string())]
+            .iter()
+            .cloned()
+            .collect(),
+        experiment_name: "Experiment 1".to_string(),
+        flow_cell_id: "FCID123".to_string(),
+        flow_cell_product_code: "PC123".to_string(),
+        protocol_name: "Protocol 1".to_string(),
+        protocol_run_id: "PRID123".to_string(),
+        protocol_start_time: 1625097600000,
+        sample_id: "Sample 1".to_string(),
+        sample_rate: 5000,
+        sequencing_kit: "Kit X".to_string(),
+        sequencer_position: "Position 1".to_string(),
+        sequencer_position_type: "Type A".to_string(),
+        software: "Software 1.0".to_string(),
+        system_name: "System 1".to_string(),
+        system_type: "System Type A".to_string(),
+        tracking_id: [("key1".to_string(), "value1".to_string())]
+            .iter()
+            .cloned()
+            .collect(),
+    }
 }

@@ -1,17 +1,20 @@
-use arrow::array::cast::{as_generic_binary_array, as_large_list_array};
+use arrow::datatypes::Schema;
 use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
 
 use arrow::record_batch::RecordBatch;
 use flatbuffers::WIPOffset;
-use reads::{_build_read_id, create_reads_arrow_schema, dummy_read_row};
-use run_info::{_run_info_batch, run_info_schema};
-use signal::{signal_data, signal_schema};
+use footer::write_flatbuffer_footer;
+use reads::{create_read_batches, create_reads_arrow_schema, ReadInfo};
+use run_info::{create_run_info_batch, dummy_run_info, run_info_schema, RunInfoData};
+use signal::signal_schema;
+use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
-mod reads;
-mod run_info;
-mod signal;
+pub mod footer;
+pub mod reads;
+pub mod run_info;
+pub mod signal;
 use std::sync::Arc;
 use uuid::Uuid;
 extern crate flatbuffers;
@@ -19,196 +22,198 @@ extern crate flatbuffers;
 // import the generated code
 #[allow(dead_code, unused_imports)]
 #[path = "../static/footer_generated.rs"]
-mod footer_generated;
+pub mod footer_generated;
 pub use footer_generated::minknow::reads_format::{
     root_as_footer, ContentType, EmbeddedFile, EmbeddedFileArgs, EmbeddedFileBuilder, Footer,
     FooterArgs, Format,
 };
 
-fn _generate_signature() {}
-fn main() -> arrow::error::Result<()> {
-    let uuid = Uuid::parse_str("56202382-7cda-49e4-9403-2a4f6acc22ab").unwrap();
-    let read_id = _build_read_id(uuid).unwrap();
+use crate::reads::dummy_read_row;
 
-    let read_schema = Arc::new(create_reads_arrow_schema().unwrap());
-    let read_data = dummy_read_row(read_schema.clone(), read_id.clone()).unwrap();
+/// Pod5 in hexadecimal
+const SIGNATURE: [u8; 8] = [0x8B, 0x50, 0x4F, 0x44, 0x0D, 0x0A, 0x1A, 0x0A];
 
-    let run_info_schema = Arc::new(run_info_schema().unwrap());
-    let run_info_batch = _run_info_batch(run_info_schema.clone()).unwrap();
+/// Pod5 version at time of writing
+const POD5_VERSION: &str = "0.3.2";
 
-    let signal_schema = Arc::new(signal_schema());
-    let signal_data_ = signal_data(signal_schema.clone(), read_id).unwrap();
+/// Podders version that wrote the file
+const SOFTWARE: &str = "POD5_VERSION";
 
-    // Footer flatbuffer time
-    let mut builder = flatbuffers::FlatBufferBuilder::new();
+/// Generate the unique section marker for the file
+fn _generate_section_marker() {
+    Uuid::new_v4().as_bytes().to_vec();
+}
 
-    // Example metadata
-    let file_identifier = builder.create_string("cbf91180-0684-4a39-bf56-41eaf437de9e");
-    let software = builder.create_string("Podders");
-    let pod5_version = builder.create_string("0.3.2");
-
-    // Create individual EmbeddedFiles
-    let mut embedded_files: Vec<WIPOffset<EmbeddedFile>> = Vec::new();
-
-    // Serialize to Arrow IPC format and write to a POD5 file
-    let mut file = File::create("example.pod5")?;
-    // ----------------------- Header ------------------ //
-    // POD5 signature
-    let signature = [0x8B, 0x50, 0x4F, 0x44, 0x0D, 0x0A, 0x1A, 0x0A];
-    file.write_all(&signature)?;
-
-    // Section marker (UUID)
-    let section_marker = Uuid::new_v4().as_bytes().to_vec();
-    file.write_all(&section_marker)?;
-    // This works fine up to here
-
-    // ----------------------- TABLES ------------------ //
-    // READS TABLE
-    let offset: i64 = file.stream_position().unwrap() as i64;
-    println!("reads offset {offset}");
-    // Serialize the read RecordBatch to Arrow IPC format and write to the file
+fn _write_table(
+    mut file_handle: &mut File,
+    section_marker: &[u8; 16],
+    batches: &Vec<RecordBatch>,
+    embedded_file: &mut EmbeddedFileArgs,
+) -> Result<(), std::io::Error> {
+    let offset: i64 = file_handle.stream_position().unwrap() as i64;
+    // Assuming all RecordBatches have the same schema
+    let schema = batches[0].schema();
     {
-        let mut writer = FileWriter::try_new(&file, &read_schema)?;
-        writer.write(&read_data).unwrap();
-        writer.finish().unwrap();
-    }
-    let length = file.stream_position().unwrap() as i64 - offset; // Replace with actual length
-    println!("reads length {length}");
+        let mut writer = FileWriter::try_new(file_handle, &schema).unwrap();
 
-    let current_pos = file.stream_position()?;
-    let padding_needed = (8 - (current_pos % 8)) % 8; // Calculate padding to reach 8-byte boundary
-    println!("reads padding {padding_needed}");
-
-    // Write padding bytes
-    for _ in 0..padding_needed {
-        file.write_all(&[0])?;
-    }
-    file.write_all(&section_marker)?;
-    // Example data for an EmbeddedFile
-
-    let embedded_file = EmbeddedFile::create(
-        &mut builder,
-        &EmbeddedFileArgs {
-            offset,
-            length,
-            format: Format::FeatherV2, // Example format, adjust as needed
-            content_type: ContentType::ReadsTable, // Example content type
-        },
-    );
-    embedded_files.push(embedded_file);
-    // RUN INFO TABLE
-
-    let offset: i64 = file.stream_position().unwrap() as i64;
-    println!("runinfo offset {offset}");
-
-    {
-        let mut writer: FileWriter<&File> = FileWriter::try_new(&file, &run_info_schema)?;
-        writer.write(&run_info_batch).unwrap();
-        writer.finish()?;
-    }
-    let length = file.stream_position().unwrap() as i64 - offset; // Replace with actual length
-    println!("runinfo length {length}");
-
-    let current_pos = file.stream_position()?;
-    let padding_needed = (8 - (current_pos % 8)) % 8; // Calculate padding to reach 8-byte boundary
-    println!("runinfo padding {padding_needed}");
-
-    // Write padding bytes
-    for _ in 0..padding_needed {
-        file.write_all(&[0])?;
-    }
-    file.write_all(&section_marker)?;
-
-    let embedded_file = EmbeddedFile::create(
-        &mut builder,
-        &EmbeddedFileArgs {
-            offset,
-            length,
-            format: Format::FeatherV2, // Example format, adjust as needed
-            content_type: ContentType::RunInfoTable, // Example content type
-        },
-    );
-    embedded_files.push(embedded_file);
-    // SIGNAL TABLE
-    let offset: i64 = file.stream_position().unwrap() as i64;
-    println!("singal offset {offset}");
-    {
-        let mut writer: FileWriter<&File> = FileWriter::try_new(&file, &signal_schema)?;
-
-        for signal_data in signal_data_ {
-            writer.write(&signal_data)?;
+        for batch in batches {
+            writer.write(batch).expect("Failed to write batch to IPC");
         }
-        writer.finish()?;
-    }
-    let length = file.stream_position().unwrap() as i64 - offset; // Replace with actual length
-    println!("signal length {length}");
 
-    let current_pos = file.stream_position()?;
+        writer.finish().unwrap();
+        file_handle = writer.into_inner().unwrap();
+    }
+    let length = file_handle.stream_position().unwrap() as i64 - offset; // Replace with actual length
+
+    let current_pos = file_handle.stream_position()?;
     let padding_needed = (8 - (current_pos % 8)) % 8; // Calculate padding to reach 8-byte boundary
-    println!("signal padding {padding_needed}");
-
-    // Write padding bytes
+                                                      // Write padding bytes
     for _ in 0..padding_needed {
-        file.write_all(&[0])?;
+        file_handle.write_all(&[0])?;
     }
-    file.write_all(&section_marker)?;
-    let embedded_file = EmbeddedFile::create(
-        &mut builder,
-        &EmbeddedFileArgs {
-            offset,
-            length,
-            format: Format::FeatherV2, // Example format, adjust as needed
-            content_type: ContentType::SignalTable, // Example content type
-        },
-    );
-    embedded_files.push(embedded_file);
-    // ----------------------- FOOTER ------------------ //
-    // Footer magic "FOOTER" padded to 8 bytes with zeroes
-    let footer_magic: &[u8; 8] = b"FOOTER\0\0";
-    file.write_all(footer_magic)?;
-    // Create the vector of EmbeddedFiles
-    let contents = builder.create_vector(&embedded_files);
+    embedded_file.length = length;
+    embedded_file.offset = offset;
+    file_handle.write_all(section_marker)?;
+    file_handle.flush()?;
+    Ok(())
+}
 
-    // Build the Footer table
-    let footer = Footer::create(
-        &mut builder,
-        &FooterArgs {
-            file_identifier: Some(file_identifier),
-            software: Some(software),
-            pod5_version: Some(pod5_version),
-            contents: Some(contents),
-        },
-    );
+/// Top level struct for a Pod5 file
+pub struct Pod5File {
+    filehandle: File,
+    read_table: EmbeddedFileArgs,
+    run_table: EmbeddedFileArgs,
+    signal_table: EmbeddedFileArgs,
+    _reads: Vec<ReadInfo>,
+    _signal: Vec<RecordBatch>,
+    _run_info: Vec<RunInfoData>,
+    _reads_schema: Arc<Schema>,
+    _run_schema: Arc<Schema>,
+    _signal_schema: Arc<Schema>,
+    _section_marker: Uuid,
+    _file_identifier: Uuid,
+}
 
-    builder.finish(footer, None);
-    let current_pos = file.stream_position().unwrap();
-    let offset = current_pos;
-    println!("pre footer wrrite pos {current_pos}");
-
-    // Get the final FlatBuffer byte array to write to the file
-    let buf = builder.finished_data();
-    file.write_all(buf)?;
-    let current_pos = file.stream_position()?;
-    println!("post footer wrrite {current_pos}");
-    let padding_needed = (8 - (current_pos % 8)) % 8; // Calculate padding to reach 8-byte boundary
-
-    println!("{padding_needed}");
-    // Write padding bytes
-    for _ in 0..padding_needed {
-        println!("Adding padding");
-        file.write_all(&[0])?;
+impl Pod5File {
+    /// Generate a new Pod5File, and initialise tracking of the embedded files.
+    pub fn new(filepath: &str) -> Result<Self, Box<dyn Error>> {
+        let mut file = File::create(filepath)?;
+        file.write_all(&SIGNATURE)?;
+        let section_marker = Uuid::new_v4();
+        let file_identifier = Uuid::new_v4();
+        file.write_all(section_marker.as_bytes())?;
+        Ok(Pod5File {
+            filehandle: file,
+            read_table: EmbeddedFileArgs {
+                format: Format::FeatherV2, // Example format, adjust as needed
+                content_type: ContentType::ReadsTable,
+                offset: 0,
+                length: 0, // Example content type
+            },
+            run_table: EmbeddedFileArgs {
+                format: Format::FeatherV2, // Example format, adjust as needed
+                content_type: ContentType::RunInfoTable,
+                offset: 0,
+                length: 0, // Example content type
+            },
+            signal_table: EmbeddedFileArgs {
+                format: Format::FeatherV2, // Example format, adjust as needed
+                content_type: ContentType::SignalTable,
+                offset: 0,
+                length: 0, // Example content type
+            },
+            _reads: vec![],
+            _signal: vec![],
+            _run_info: vec![],
+            _reads_schema: Arc::new(create_reads_arrow_schema(&file_identifier)?),
+            _run_schema: Arc::new(run_info_schema(&file_identifier)?),
+            _signal_schema: Arc::new(signal_schema(&file_identifier)),
+            _section_marker: section_marker,
+            _file_identifier: file_identifier,
+        })
     }
-    // Footer length (dummy value for example)
-    let footer_length: i64 = file.stream_position().unwrap() as i64 - offset as i64;
-    println!("footer length {footer_length}");
-    file.write_all(&footer_length.to_le_bytes())?;
 
-    // Write the section marker again
-    file.write_all(&section_marker)?;
+    /// Set the run info on the Struct
+    pub fn push_run_info(&mut self, run_info: RunInfoData) {
+        self._run_info.push(run_info)
+    }
 
-    // Ending with the same signature
-    file.write_all(&signature)?;
-    file.flush()?;
+    /// Dump all created Run info RecordBatches (tables) into the file, and set the offset and length correctly
+    /// on the Embedded file args
+    pub fn write_run_info_to_ipc(&mut self) {
+        let batches = create_run_info_batch(self._run_schema.clone(), &self._run_info).unwrap();
+        _write_table(
+            &mut self.filehandle,
+            self._section_marker.as_bytes(),
+            &batches,
+            &mut self.run_table,
+        )
+        .unwrap();
+    }
+
+    /// Push reads to internal buffer
+    pub fn push_read(&mut self, read: ReadInfo) {
+        self._reads.push(read)
+    }
+
+    pub fn write_signal_to_ipc(&mut self) {
+        _write_table(
+            &mut self.filehandle,
+            self._section_marker.as_bytes(),
+            &self._signal,
+            &mut self.signal_table,
+        )
+        .unwrap();
+    }
+
+    /// Write the reads and signal in the internal buffer into the file. DO NOT CALL MORE THAN ONCE YOU WILL MESS THINGS UP
+    pub fn write_reads_to_ipc(&mut self) {
+        let batches = create_read_batches(
+            self._reads_schema.clone(),
+            &self._reads,
+            &mut self._signal,
+            self._signal_schema.clone(),
+        )
+        .unwrap();
+        _write_table(
+            &mut self.filehandle,
+            self._section_marker.as_bytes(),
+            &batches,
+            &mut self.read_table,
+        )
+        .unwrap();
+    }
+
+    /// Write the footer and finish the fil
+    pub fn write_footer(&mut self) {
+        let embedded_args = vec![&self.read_table, &self.run_table, &self.signal_table];
+        write_flatbuffer_footer(
+            &mut self.filehandle,
+            embedded_args,
+            self._file_identifier,
+            self._section_marker.as_bytes(),
+        )
+        .unwrap()
+    }
+}
+
+fn test() -> arrow::error::Result<()> {
+    let mut pod5 = Pod5File::new("test_builder.pod5").unwrap();
+
+    pod5.push_run_info(dummy_run_info());
+    pod5.write_run_info_to_ipc();
+    println!("{:#?}", pod5.run_table.length);
+
+    let read = dummy_read_row(None).unwrap();
+    let read_2 = dummy_read_row(Some("9e81bb6a-8610-4907-b4dd-4ed834fc414d")).unwrap();
+
+    pod5.push_read(read);
+    pod5.push_read(read_2);
+    pod5.write_reads_to_ipc();
+    // println!("{:#?}", pod5._signal);
+    pod5.write_signal_to_ipc();
+    pod5.write_footer();
+
     Ok(())
 }
 
@@ -238,59 +243,26 @@ fn read_arrow_table(
     Ok(batches)
 }
 
-struct FileInfo {
-    offset: u64,
-    length: u64,
-}
-
-fn read_pod5_footer(filename: &str, table: ContentType) -> FileInfo {
-    let mut file = File::open(filename).unwrap();
-    let _end = file.seek(SeekFrom::End(0)).unwrap();
-    file.seek(SeekFrom::Current(-32)).unwrap(); // Signature + Section marker + 8 bytes for footer length
-    let mut buffer = [0; 8]; // Buffer for 8 bytes
-
-    file.read_exact(&mut buffer).unwrap(); // Read 8 bytes
-
-    // Convert bytes to little-endian i64
-    let value = i64::from_le_bytes(buffer);
-    println!("{value}");
-    // Seek to the footer position
-    file.seek(SeekFrom::Current(-(8 + value))).unwrap();
-
-    // Read the footer data
-    let mut buf = vec![0; value as usize];
-    file.read_exact(&mut buf).unwrap();
-
-    // Deserialize the FlatBuffer
-    let footer = root_as_footer(&buf).unwrap();
-    // Now you can access the data from the footer
-    let x: Vec<EmbeddedFile> = footer
-        .contents()
-        .unwrap()
-        .iter()
-        .filter(|x| x.content_type() == table)
-        .collect();
-    FileInfo {
-        offset: x[0].offset() as u64,
-        length: x[0].length() as u64,
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
-    use arrow::array::{Array, BinaryArray, Int16Array};
+    use arrow::array::Array;
+
+    use crate::footer::read_pod5_footer;
 
     use super::*;
+    use arrow::array::cast::as_large_list_array;
 
     #[test]
     fn does_it_work() {
-        main().unwrap()
+        test().unwrap()
     }
     #[test]
     fn test_reading_signal_table() {
-        let file_info = read_pod5_footer("example.pod5", ContentType::SignalTable);
-        let batch = read_arrow_table("example.pod5", file_info.offset, file_info.length).unwrap();
+        let file_info = read_pod5_footer("test_builder.pod5", ContentType::SignalTable);
+        println!("{}, length: {}", file_info.offset, file_info.length);
+        let batch =
+            read_arrow_table("test_builder.pod5", file_info.offset, file_info.length).unwrap();
         let schema = batch[0].schema();
 
         for field in schema.fields() {

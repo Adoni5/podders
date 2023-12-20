@@ -6,8 +6,14 @@ use arrow::{
 use std::fs::File;
 use std::io::{self, Read};
 use std::{collections::HashMap, error::Error, sync::Arc};
+use uuid::Uuid;
 
-fn read_int16_from_file(filename: &str) -> io::Result<Vec<i16>> {
+use crate::{POD5_VERSION, SOFTWARE};
+
+/// Maximum signal data in a row
+const MAX_SIGNAL: usize = 20000;
+
+pub fn read_int16_from_file(filename: &str) -> io::Result<Vec<i16>> {
     let mut f = File::open(filename)?;
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer)?;
@@ -21,14 +27,14 @@ fn read_int16_from_file(filename: &str) -> io::Result<Vec<i16>> {
     Ok(data)
 }
 
-pub fn signal_schema() -> Schema {
+pub fn signal_schema(file_identifier: &Uuid) -> Schema {
     let mut metadata: HashMap<String, String> = HashMap::new();
 
-    metadata.insert("MINKNOW:pod5_version".to_string(), "1.0.0".to_string());
-    metadata.insert("MINKNOW:software".to_string(), "Podders".to_string());
+    metadata.insert("MINKNOW:pod5_version".to_string(), POD5_VERSION.to_string());
+    metadata.insert("MINKNOW:software".to_string(), SOFTWARE.to_string());
     metadata.insert(
         "MINKNOW:file_identifier".to_string(),
-        "cbf91180-0684-4a39-bf56-41eaf437de9e".to_string(),
+        file_identifier.to_string(),
     );
 
     let mut read_metadata = HashMap::new();
@@ -53,19 +59,18 @@ pub fn signal_schema() -> Schema {
     )
 }
 
-pub fn signal_data(
+pub fn handle_signal_data(
     schema: Arc<Schema>,
     read_id: arrow::array::FixedSizeBinaryArray,
+    signal_vec: &[i16],
 ) -> Result<Vec<RecordBatch>, Box<dyn Error>> {
     // Create dummy data
     // Create a LargeListBuilder
     let mut batches = vec![];
     // Append a list to the LargeListBuilder
 
-    let data = read_int16_from_file("static/test_signal.bin")?;
-
     // println!("Data length after move {}", data.len());
-    for chunk in data.chunks(1000) {
+    for chunk in signal_vec.chunks(MAX_SIGNAL) {
         let mut signal_builder = LargeListBuilder::new(Int16Builder::new());
         signal_builder.values().append_slice(chunk);
         signal_builder.append(true);
