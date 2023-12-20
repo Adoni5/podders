@@ -42,8 +42,8 @@ fn convert_hashmap_to_maparray(map: &HashMap<String, String>) -> arrow::error::R
     for (key, value) in map {
         map_builder.keys().append_value(key);
         map_builder.values().append_value(value);
-        map_builder.append(true)?;
     }
+    map_builder.append(true)?;
 
     Ok(map_builder.finish())
 }
@@ -185,10 +185,13 @@ pub fn dummy_run_info() -> RunInfoData {
         acquisition_start_time: 1625097600000,
         adc_max: 32767,
         adc_min: -32768,
-        context_tags: [("key1".to_string(), "value1".to_string())]
-            .iter()
-            .cloned()
-            .collect(),
+        context_tags: [
+            ("key1".to_string(), "value1".to_string()),
+            ("key2".to_string(), "value2".to_string()),
+        ]
+        .iter()
+        .cloned()
+        .collect(),
         experiment_name: "Experiment 1".to_string(),
         flow_cell_id: "FCID123".to_string(),
         flow_cell_product_code: "PC123".to_string(),
