@@ -1,3 +1,17 @@
+//! `podders` - A Rust crate for handling Pod5 file format, written in native rust.
+//!
+//! This library offers comprehensive functionalities for the Pod5 file format,
+//! focusing on data serialization with Apache Arrow and FlatBuffers.
+//! It includes capabilities to create, and write structured data in the Pod5 format,
+//! adhering to the format as of 20/12/23 (v0.3.2)
+//!
+//! Key Features:
+//! - Matches schemas for official pod5 specification.
+//! - Writing Pod5 files with efficient serialization.
+//!
+//! The library provides various submodules (`reads`, `run_info`, `signal`, `footer`)
+//! each dedicated to handling different aspects of the Pod5 file format.
+
 use arrow::datatypes::Schema;
 use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
@@ -30,20 +44,84 @@ pub use footer_generated::minknow::reads_format::{
 
 use crate::reads::dummy_read_row;
 
-/// Pod5 in hexadecimal
+/// Pod5 in hexadecimal - file signature
 const SIGNATURE: [u8; 8] = [0x8B, 0x50, 0x4F, 0x44, 0x0D, 0x0A, 0x1A, 0x0A];
 
 /// Pod5 version at time of writing
 const POD5_VERSION: &str = "0.3.2";
 
 /// Podders version that wrote the file
-const SOFTWARE: &str = "POD5_VERSION";
+const SOFTWARE: &str = "PODDERS! v0.1.0";
 
-/// Generate the unique section marker for the file
+/// Generates a unique section marker for a file.
+///
+/// This function creates a new V4 UUID and converts it to a byte vector.
+/// This is called each time a Pod5 struct is initialised, to demark each section
+/// of the pod5 file.
+///
+/// # Examples
+///
+/// ```rust
+/// # fn main() {
+/// let section_marker = _generate_section_marker();
+/// assert_eq!(section_marker.len(), 16); // UUID v4 is always 16 bytes
+/// # }
+/// # fn _generate_section_marker() -> Vec<u8> {
+/// #    uuid::Uuid::new_v4().as_bytes().to_vec()
+/// # }
+/// ```
 fn _generate_section_marker() {
     Uuid::new_v4().as_bytes().to_vec();
 }
 
+/// Writes a vector of RecordBatches to a file and updates the passed EmbeddedFileArgs in place.
+///
+/// This function writes the given RecordBatches to the provided file handle,
+/// and then updates the offset and length in the EmbeddedFileArgs to reflect
+/// the written data. It ensures that the written data aligns to an 8-byte boundary.
+///
+/// # Arguments
+/// * `file_handle` - A mutable reference to the file where the data will be written.
+/// * `section_marker` - A 16-byte array to mark the end of the written section.
+/// * `batches` - A vector of RecordBatches to be written to the file.
+/// * `embedded_file` - A mutable reference to an EmbeddedFileArgs struct to be updated with the new offset and length.
+///
+/// # Returns
+/// A Result<(), std::io::Error>, indicating the success or failure of the operation.
+///
+/// # Example
+/// ```
+/// # use arrow::ipc::writer::FileWriter;
+/// # use arrow::record_batch::RecordBatch;
+/// # use std::fs::File;
+/// # use uuid::Uuid;
+/// # fn main() -> std::io::Result<()> {
+/// # let mut file_handle = File::create("example.arrow")?;
+/// let section_marker = Uuid::new_v4();
+/// let batches: Vec<RecordBatch> = vec![]; // Populate with actual RecordBatches
+/// let mut embedded_file = EmbeddedFileArgs {
+///     offset: 0,
+///     length: 0,
+///     format: Format::FeatherV2,
+///     content_type: ContentType::ReadsTable,
+/// };
+///
+/// _write_table(&mut file_handle, section_marker.as_bytes(), &batches, &mut embedded_file)?;
+/// // Now embedded_file contains updated offset and length
+/// # Ok(())
+/// # }
+/// # fn _write_table(file_handle: &mut File, section_marker: &[u8; 16], batches: &Vec<RecordBatch>, embedded_file: &mut EmbeddedFileArgs) -> std::io::Result<()> {
+/// #     Ok(())
+/// # }
+/// # struct EmbeddedFileArgs {
+/// #     offset: i64,
+/// #     length: i64,
+/// #     format: Format,
+/// #     content_type: ContentType,
+/// # }
+/// # enum Format { FeatherV2 }
+/// # enum ContentType { ReadsTable }
+/// ```
 fn _write_table(
     mut file_handle: &mut File,
     section_marker: &[u8; 16],
@@ -78,24 +156,56 @@ fn _write_table(
     Ok(())
 }
 
-/// Top level struct for a Pod5 file
+/// Represents a Pod5 file, encapsulating all necessary components and metadata for handling Pod5 data.
 pub struct Pod5File {
+    /// File handle for reading from or writing to the Pod5 file.
     filehandle: File,
+    /// Metadata and positional information for the reads table embedded in the file.
     read_table: EmbeddedFileArgs,
+    /// Metadata and positional information for the run information table embedded in the file.
     run_table: EmbeddedFileArgs,
+    /// Metadata and positional information for the signal table embedded in the file.
     signal_table: EmbeddedFileArgs,
+    /// Buffer to hold `ReadInfo` data before writing to the file.
     _reads: Vec<ReadInfo>,
+    /// Buffer to hold signal `RecordBatch` data before writing to the file.
     _signal: Vec<RecordBatch>,
+    /// Buffer to hold `RunInfoData` before writing to the file.
     _run_info: Vec<RunInfoData>,
+    /// Schema for the reads data.
     _reads_schema: Arc<Schema>,
+    /// Schema for the run information data.
     _run_schema: Arc<Schema>,
+    /// Schema for the signal data.
     _signal_schema: Arc<Schema>,
+    /// Unique identifier used as a section marker in the file.
     _section_marker: Uuid,
+    /// Unique identifier for the file, used for internal tracking and referencing.
     _file_identifier: Uuid,
 }
 
 impl Pod5File {
-    /// Generate a new Pod5File, and initialise tracking of the embedded files.
+    /// Creates a new `Pod5File` instance, initializing it for tracking embedded files.
+    ///
+    /// This function generates a new Pod5 file at the specified filepath.
+    /// It initializes the file with a signature, section marker, and file identifier,
+    /// and sets up the metadata for the embedded reads, run information, and signal tables.
+    ///
+    /// # Arguments
+    /// * `filepath` - The path where the new Pod5 file will be created.
+    ///
+    /// # Returns
+    /// A `Result<Pod5File, Box<dyn Error>>`, which is the new `Pod5File` instance on success,
+    /// or an error if the file creation or initialization fails.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let pod5_file = Pod5File::new("path/to/file.pod5");
+    /// match pod5_file {
+    ///     Ok(file) => println!("Pod5 file created successfully."),
+    ///     Err(e) => println!("Error creating Pod5 file: {}", e),
+    /// }
+    /// ```
     pub fn new(filepath: &str) -> Result<Self, Box<dyn Error>> {
         let mut file = File::create(filepath)?;
         file.write_all(&SIGNATURE)?;
@@ -133,7 +243,25 @@ impl Pod5File {
         })
     }
 
-    /// Set the run info on the Struct
+    /// Adds a new `RunInfoData` instance to the Pod5 file.
+    ///
+    /// This method appends the provided `RunInfoData` to the internal run information buffer
+    /// of the `Pod5File` struct. It is used to accumulate run information before writing it to the file.
+    ///
+    /// # Arguments
+    /// * `run_info` - The `RunInfoData` instance to be added to the Pod5 file.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// # use podders::Pod5File;
+    /// # use podders::run_info::RunInfoData;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut pod5_file = Pod5File::new("my_file.pod5")?;
+    /// let run_info = RunInfoData { /* fields */ };
+    /// pod5_file.push_run_info(run_info);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn push_run_info(&mut self, run_info: RunInfoData) {
         self._run_info.push(run_info)
     }
@@ -151,7 +279,8 @@ impl Pod5File {
         .unwrap();
     }
 
-    /// Push reads to internal buffer
+    /// Push reads to internal buffer, ready to be written out
+    /// By a call to write_reads_to_ipc
     pub fn push_read(&mut self, read: ReadInfo) {
         self._reads.push(read)
     }
@@ -184,7 +313,7 @@ impl Pod5File {
         .unwrap();
     }
 
-    /// Write the footer and finish the fil
+    /// Write the footer and finish the file. Again please ONLY CALL ONCE PER FILE
     pub fn write_footer(&mut self) {
         let embedded_args = vec![&self.read_table, &self.run_table, &self.signal_table];
         write_flatbuffer_footer(
