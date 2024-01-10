@@ -371,8 +371,8 @@ pub fn create_read_row(
     // <-------------------- Handle Signal -------------------->
     let signal_batches = handle_signal_data(signal_schema, read_id.clone(), &read.signal_)?;
     let num_signal_rows = signal_batches.len();
-    _signal.extend(signal_batches);
     let offset = _signal.len();
+    _signal.extend(signal_batches);
     let signal_: ListArray = _build_signal_index(offset..(offset + num_signal_rows))?;
 
     // <--------------------- Rest of the fields ---------------->
