@@ -375,7 +375,7 @@ pub fn create_read_row(
     let offset = _signal.len();
     println!("Number of rows already - {offset}");
     _signal.extend(signal_batches);
-    println!("now this many rows");
+    println!("now this many rows {}", _signal.len());
     let signal_: ListArray = _build_signal_index(offset..(offset + num_signal_rows))?;
     println!("Signal row indices for this read {:#?}", signal_);
     // <--------------------- Rest of the fields ---------------->
@@ -433,6 +433,12 @@ pub fn create_read_row(
 
 pub fn dummy_read_row(read_id: Option<&str>) -> Result<ReadInfo, Box<dyn Error>> {
     let signal_data = read_int16_from_file("static/test_signal.bin")?;
+    let signal_data: Vec<i16> = signal_data
+        .iter()
+        .cycle()
+        .take(signal_data.len() * 10)
+        .cloned()
+        .collect();
     let num_samples = signal_data.len() as u64;
     let read: ReadInfo = ReadInfo {
         read_id: Uuid::parse_str(read_id.unwrap_or("56202382-7cda-49e4-9403-2a4f6acc22ab"))?,
