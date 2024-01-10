@@ -330,12 +330,11 @@ mod tests {
 
     use crate::reads::dummy_read_row;
     use run_info::dummy_run_info;
-    use std::io::{Read, Seek, SeekFrom, Write};
+    use std::io::{Read, Seek, SeekFrom};
 
     use crate::footer::read_pod5_footer;
 
     use super::*;
-    use arrow::array::cast::as_large_list_array;
 
     fn test() -> arrow::error::Result<()> {
         let mut pod5 = Pod5File::new("test_builder.pod5").unwrap();
@@ -404,7 +403,7 @@ mod tests {
         }
         let signal = batch[0].column_by_name("signal").unwrap();
         println!("{}", signal.data_type());
-        let collected = as_large_list_array(signal).values();
+        // let collected = as_large_list_array(signal).values();
         println!("{}", signal.len());
     }
     #[test]
