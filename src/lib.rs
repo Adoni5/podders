@@ -335,9 +335,6 @@ mod tests {
     use crate::footer::read_pod5_footer;
 
     use super::*;
-    fn init() {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
 
     fn test() -> arrow::error::Result<()> {
         let mut pod5 = Pod5File::new("test_builder.pod5").unwrap();
@@ -387,7 +384,6 @@ mod tests {
 
     #[test]
     fn does_it_work() {
-        init();
         test().unwrap()
     }
     #[test]
