@@ -324,9 +324,9 @@ impl Pod5File {
 
 #[cfg(test)]
 mod tests {
-
     use arrow::array::Array;
     use arrow::ipc::reader::FileReader;
+    use log::info;
 
     use crate::reads::dummy_read_row;
     use run_info::dummy_run_info;
@@ -335,6 +335,9 @@ mod tests {
     use crate::footer::read_pod5_footer;
 
     use super::*;
+    fn init() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
 
     fn test() -> arrow::error::Result<()> {
         let mut pod5 = Pod5File::new("test_builder.pod5").unwrap();
@@ -342,7 +345,7 @@ mod tests {
         pod5.push_run_info(dummy_run_info());
         pod5.write_run_info_to_ipc();
         println!("{:#?}", pod5.run_table.length);
-
+        info!("helo");
         let read = dummy_read_row(None).unwrap();
         let read_2 = dummy_read_row(Some("9e81bb6a-8610-4907-b4dd-4ed834fc414d")).unwrap();
 
@@ -384,6 +387,7 @@ mod tests {
 
     #[test]
     fn does_it_work() {
+        init();
         test().unwrap()
     }
     #[test]

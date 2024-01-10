@@ -23,6 +23,7 @@ use arrow::{
     datatypes::{DataType, Field, Int16Type, Schema},
     record_batch::RecordBatch,
 };
+use log::warn;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
@@ -371,13 +372,13 @@ pub fn create_read_row(
     // <-------------------- Handle Signal -------------------->
     let signal_batches = handle_signal_data(signal_schema, read_id.clone(), &read.signal_)?;
     let num_signal_rows = signal_batches.len();
-    println!("Adding this many rows {num_signal_rows}");
+    warn!("Adding this many rows {num_signal_rows}");
     let offset = _signal.len();
-    println!("Number of rows already - {offset}");
+    warn!("Number of rows already - {offset}");
     _signal.extend(signal_batches);
-    println!("now this many rows {}", _signal.len());
+    warn!("now this many rows {}", _signal.len());
     let signal_: ListArray = _build_signal_index(offset..(offset + num_signal_rows))?;
-    println!("Signal row indices for this read {:#?}", signal_);
+    warn!("Signal row indices for this read {:#?}", signal_);
     // <--------------------- Rest of the fields ---------------->
     let channel = UInt16Array::from(vec![read.channel]);
     let well = UInt8Array::from(vec![read.well]);
