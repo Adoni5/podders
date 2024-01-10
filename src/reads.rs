@@ -371,13 +371,13 @@ pub fn create_read_row(
     // <-------------------- Handle Signal -------------------->
     let signal_batches = handle_signal_data(signal_schema, read_id.clone(), &read.signal_)?;
     let num_signal_rows = signal_batches.len();
-    eprintln!("Adding this many rows {num_signal_rows}");
+    println!("Adding this many rows {num_signal_rows}");
     let offset = _signal.len();
-    eprintln!("Number of rows already - {offset}");
+    println!("Number of rows already - {offset}");
     _signal.extend(signal_batches);
-    eprintln!("now this many rows");
+    println!("now this many rows");
     let signal_: ListArray = _build_signal_index(offset..(offset + num_signal_rows))?;
-    eprintln!("Signal row indices for this read {:#?}", signal_);
+    println!("Signal row indices for this read {:#?}", signal_);
     // <--------------------- Rest of the fields ---------------->
     let channel = UInt16Array::from(vec![read.channel]);
     let well = UInt8Array::from(vec![read.well]);
