@@ -35,6 +35,7 @@ use uuid::Uuid;
 pub enum PoreType {
     R9,
     R10,
+    NotSet,
 }
 impl fmt::Display for PoreType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -44,6 +45,7 @@ impl fmt::Display for PoreType {
             match self {
                 PoreType::R9 => "R9.4.1",
                 PoreType::R10 => "R10.4.1",
+                PoreType::NotSet => "not-set",
             }
         )
     }
